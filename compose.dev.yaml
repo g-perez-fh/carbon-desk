@@ -1,0 +1,13 @@
+# Optional source mounts and reload for coding inside Docker.
+services:
+  backend:
+    volumes:
+      - ./backend:/app/backend
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py runserver 0.0.0.0:8000"
+  frontend:
+    volumes:
+      - ./frontend:/app/frontend
+    environment:
+      FRONTEND_RELOAD: "True"

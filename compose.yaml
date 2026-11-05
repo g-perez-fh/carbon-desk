@@ -1,0 +1,73 @@
+# Local development/demo deployment, not a production configuration.
+name: carbondesk
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-carbondesk}
+      POSTGRES_USER: ${POSTGRES_USER:-carbondesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-carbondesk-local-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      DB_ENGINE: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-carbondesk}
+      POSTGRES_USER: ${POSTGRES_USER:-carbondesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-carbondesk-local-only}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py runserver 0.0.0.0:8000 --noreload"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - media_data:/app/backend/media
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      BACKEND_URL: http://backend:8000
+      FRONTEND_HOST: 0.0.0.0
+      FRONTEND_PORT: "8080"
+      FRONTEND_RELOAD: "False"
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  postgres_data:
+  media_data:
