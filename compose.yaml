@@ -30,6 +30,7 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
     command: >-
       sh -c "python manage.py migrate --noinput &&
       python manage.py runserver 0.0.0.0:8000 --noreload"
@@ -56,6 +57,7 @@ services:
       FRONTEND_HOST: 0.0.0.0
       FRONTEND_PORT: "8080"
       FRONTEND_RELOAD: "False"
+      FRONTEND_STORAGE_SECRET: ${FRONTEND_STORAGE_SECRET:-local-dev-only-change-me}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
