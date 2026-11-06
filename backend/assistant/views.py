@@ -72,6 +72,13 @@ class RecommendationsView(APIView):
             year = int(request.query_params.get("year", date.today().year))
         except ValueError:
             return Response({"year": ["Enter a valid year."]}, status=status.HTTP_400_BAD_REQUEST)
+        # The snapshot also needs the previous year and next January as an
+        # exclusive end date, so both neighbouring years must be representable.
+        if not 2 <= year <= 9998:
+            return Response(
+                {"year": ["Enter a year between 2 and 9998."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         snapshot = build_snapshot(request.user.organisation, year=year)
         return Response(
             {
