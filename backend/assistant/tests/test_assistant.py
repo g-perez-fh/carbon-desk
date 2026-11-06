@@ -39,6 +39,28 @@ def test_recommendations_endpoint(api_for, viewer_user, emissions):
     assert api_for(viewer_user).get("/api/assistant/recommendations/?year=abc").status_code == 400
 
 
+@pytest.mark.parametrize("year", ["10000", "9999", "1", "0", "-1", "abc", "", "2026.5"])
+def test_recommendations_reject_invalid_year_before_loading_data(api_for, viewer_user, year):
+    with patch("assistant.views.build_snapshot") as build_snapshot:
+        response = api_for(viewer_user).get("/api/assistant/recommendations/", {"year": year})
+    assert response.status_code == 400
+    assert "year" in response.json()
+    build_snapshot.assert_not_called()
+
+
+@pytest.mark.parametrize("year", [2, 2026, 9998])
+def test_recommendations_accept_supported_years(api_for, viewer_user, year):
+    response = api_for(viewer_user).get("/api/assistant/recommendations/", {"year": year})
+    assert response.status_code == 200
+    assert response.json()["year"] == year
+
+
+def test_recommendations_default_to_current_year(api_for, viewer_user):
+    response = api_for(viewer_user).get("/api/assistant/recommendations/")
+    assert response.status_code == 200
+    assert response.json()["year"] == date.today().year
+
+
 # Chat --------------------------------------------------------------------------------
 
 
