@@ -11,3 +11,4 @@
 *.pdf
 *.pptx
 .~lock.*
+.nicegui

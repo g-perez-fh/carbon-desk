@@ -161,12 +161,37 @@ python -m ruff format --check .
 
 ## Current status
 
-The scaffold includes navigation, placeholder subsystem pages, a backend/database
-health check, and an extendable Django user model with Django admin support.
-Business features and frontend login are not implemented yet. Django's default
-password hashing is currently used; account security policies remain part of
-the accounts implementation. Plotly and the OpenAI SDK will be added when their
-features are implemented; no API key is needed to start this scaffold.
+Implemented: **Users, Organisation & Targets** and the **AI Sustainability
+Assistant**. Emissions and analytics are still placeholders.
+
+- Register a company at http://localhost:8080/register; you become its administrator.
+- Roles: `admin` manages the organisation, members and targets; `editor` enters
+  data; `viewer` has read-only access.
+- No OpenAI key is needed. Without `OPENAI_API_KEY` the assistant answers from
+  rules; savings estimates are always calculated by the backend, not the model.
+
+### Shared building blocks for every subsystem
+
+- **API style:** Django REST Framework with token authentication. Every endpoint
+  requires login by default. The frontend sends the token through `frontend/api.py`
+  (`await api.get("emissions/...")`), which raises `ApiError` with a readable message.
+- **Company data isolation:** combine `accounts.mixins.OrganisationScopedMixin` with a
+  permission from `accounts.permissions` (for example `CanEditDataOrReadOnly`). The
+  mixin filters querysets by `organisation`, attaches new records to the user's
+  organisation and writes the audit history automatically.
+- **Emissions totals:** targets and the assistant read emissions through
+  `core/emissions_data.py`. The emissions subsystem only needs to provide
+  `emissions.services.totals_by_scope(organisation, start, end)` returning
+  `{1: Decimal, 2: Decimal, 3: Decimal}` in kg CO2e; until then totals are zero.
+
+### Main endpoints
+
+| Area | Endpoints under `/api/` |
+| --- | --- |
+| Authentication | `accounts/register/`, `accounts/login/`, `accounts/logout/`, `accounts/me/` |
+| Organisation | `accounts/organisation/`, `accounts/sites/`, `accounts/members/` |
+| Targets & alerts | `accounts/targets/`, `accounts/targets/evaluate/`, `accounts/alerts/`, `accounts/audit-log/` |
+| Assistant | `assistant/conversations/`, `assistant/conversations/<id>/messages/`, `assistant/recommendations/`, `assistant/summaries/` |
 
 Implemented UML diagrams and the team presentation video link will be added as
 development progresses.
