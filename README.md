@@ -269,3 +269,52 @@ A template is available from the import dialog.
 Streaming, activity editing/deletion, factor-change recalculation, and department
 links are follow-up work. This slice uses the existing PostgreSQL/SQLite setup;
 MySQL support for Hometask 3 is still pending.
+
+## Analytics — OOP design (Harib, Hometask 1)
+
+`backend/analytics/domain.py` is a plain-Python model of the Analytics
+subsystem: no Django imports, no database access, so it can be imported and
+tested on its own. The Django-backed dashboard in `backend/analytics/services.py`
+and `views.py` is unchanged; this module mirrors its design in framework-free
+classes for the UML assignment.
+
+```mermaid
+classDiagram
+    class DashboardService {
+        -int org_id
+        -dict filters
+        -dict cache
+        +setup(records)
+        +summary() dict
+        +trend() list
+    }
+    class KpiCalculator {
+        -str period
+        -Decimal baseline_kg
+        -int score
+        +setup(records)
+        +recompute_score() int
+        +top_sources(limit) list
+    }
+    class ChartBuilder {
+        -list palette
+        -str title
+        -list data
+        +setup(data)
+        +donut() dict
+        +line() dict
+    }
+    class ReportExporter {
+        -str format
+        -datetime created_at
+        -int user_id
+        +setup(rows, columns)
+        +to_csv() str
+        +to_pdf() bytes
+    }
+```
+
+Each class validates its own state through `@property` setters (for example,
+`KpiCalculator.score` must stay between 0 and 100, `ChartBuilder.palette` must
+be non-empty hex colors). Tests live in `backend/analytics/tests/test_domain.py`
+and run without a database: `python -m pytest backend/analytics/tests/test_domain.py`.
