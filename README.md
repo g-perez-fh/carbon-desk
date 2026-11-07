@@ -269,3 +269,90 @@ A template is available from the import dialog.
 Streaming, activity editing/deletion, factor-change recalculation, and department
 links are follow-up work. This slice uses the existing PostgreSQL/SQLite setup;
 MySQL support for Hometask 3 is still pending.
+
+## Hometask 2: Stream processing
+
+`stream_processing/` is a plain-Python, framework-free pipeline for the Enterprise
+Carbon Footprint Tracker topic: it ingests telemetry (flight bookings, data-center
+power logs, freight payloads), filters it by scope tag, and converts quantities to
+metric tons of CO2e. It has no Django imports and no database access.
+
+| File | Subsystem | Contents |
+| --- | --- | --- |
+| `stream_processing/base.py` | Shared (whole team) | `ActivityEvent`, `StreamProcessor` ABC, `Pipeline`, `EventSource` |
+| `stream_processing/emissions_processors.py` | Emissions (Guillermo) | `ScopeFilter`, `CO2eTransformer` — extend here |
+| `stream_processing/analytics_processors.py` | Analytics (Harib) | `ScopeTotalsAggregator`, `WindowedKpi`, `PeakDetector` |
+| `stream_processing/demo.py` | — | Synthetic telemetry and a full pipeline run |
+
+Stages chain with the `|` operator, left to right, and compose lazily (nothing is
+buffered in memory):
+
+```python
+source | ScopeFilter({1, 2}) | CO2eTransformer(factors) | ScopeTotalsAggregator()
+```
+
+```mermaid
+classDiagram
+    class ActivityEvent {
+        +str event_id
+        +str source
+        +int scope
+        +str category
+        +Decimal quantity
+        +str unit
+        +datetime timestamp
+        +Decimal co2e_tonnes
+    }
+    class StreamProcessor {
+        <<abstract>>
+        +process(events)
+        +__or__(other)
+        +__ror__(events)
+    }
+    class Pipeline {
+        +list stages
+        +process(events)
+    }
+    class EventSource {
+        +__iter__()
+        +__next__()
+    }
+    class ScopeFilter {
+        +set scopes
+        +process(events)
+    }
+    class CO2eTransformer {
+        +dict factors
+        +process(events)
+    }
+    class ScopeTotalsAggregator {
+        +dict totals
+        +process(events)
+    }
+    class WindowedKpi {
+        +int window
+        +process(events)
+    }
+    class PeakDetector {
+        +Decimal threshold
+        +process(events)
+    }
+    StreamProcessor <|-- Pipeline
+    StreamProcessor <|-- ScopeFilter
+    StreamProcessor <|-- CO2eTransformer
+    StreamProcessor <|-- ScopeTotalsAggregator
+    StreamProcessor <|-- WindowedKpi
+    StreamProcessor <|-- PeakDetector
+    Pipeline o-- StreamProcessor
+    EventSource ..> ActivityEvent
+```
+
+Run the demo and the tests from the repository root (same virtual environment as
+the rest of the project):
+
+```bash
+python -m stream_processing.demo
+python -m pytest stream_processing
+```
+
+Video: [link to be added]
