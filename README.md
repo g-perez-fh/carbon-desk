@@ -162,7 +162,9 @@ python -m ruff format --check .
 ## Current status
 
 Implemented: **Users, Organisation & Targets** and the **AI Sustainability
-Assistant**. Emissions and analytics are still placeholders.
+Assistant**. The emissions page now supports factor creation, activity entry,
+CSV import, calculation previews, filtered records, and totals. Analytics remains
+a placeholder.
 
 - Register a company at http://localhost:8080/register; you become its administrator.
 - Roles: `admin` manages the organisation, members and targets; `editor` enters
@@ -180,9 +182,10 @@ Assistant**. Emissions and analytics are still placeholders.
   mixin filters querysets by `organisation`, attaches new records to the user's
   organisation and writes the audit history automatically.
 - **Emissions totals:** targets and the assistant read emissions through
-  `core/emissions_data.py`. The emissions subsystem only needs to provide
-  `emissions.services.totals_by_scope(organisation, start, end)` returning
-  `{1: Decimal, 2: Decimal, 3: Decimal}` in kg CO2e; until then totals are zero.
+  `core/emissions_data.py`. The emissions subsystem provides
+  `emissions.services.totals_by_scope(organisation, start, end)`, returning
+  `{1: Decimal, 2: Decimal, 3: Decimal}` in kg CO2e from saved activities.
+  The date range includes `start` and excludes `end`.
 
 ### Main endpoints
 
@@ -191,7 +194,75 @@ Assistant**. Emissions and analytics are still placeholders.
 | Authentication | `accounts/register/`, `accounts/login/`, `accounts/logout/`, `accounts/me/` |
 | Organisation | `accounts/organisation/`, `accounts/sites/`, `accounts/members/` |
 | Targets & alerts | `accounts/targets/`, `accounts/targets/evaluate/`, `accounts/alerts/`, `accounts/audit-log/` |
+| Emissions | `emissions/factors/`, `emissions/activities/`, `emissions/activities/import/`, `emissions/preview/`, `emissions/summary/` |
 | Assistant | `assistant/conversations/`, `assistant/conversations/<id>/messages/`, `assistant/recommendations/`, `assistant/summaries/` |
 
 Implemented UML diagrams and the team presentation video link will be added as
 development progresses.
+
+## First emissions workflow
+
+1. Apply migrations with `python backend/manage.py migrate` (Compose applies them
+   at startup). Register a company or log in with its admin/editor account.
+2. An administrator adds a site on the Organisation page.
+3. On **Emissions → Emission factors**, add a factor with its name, scope, unit,
+   value in kg CO2e per unit, source, and year.
+4. Choose **Add activity**, select the site and factor, and enter the date and
+   quantity. Preview the calculation, then save it. Alternatively, choose
+   **Import CSV** to add many activities from one file.
+5. Browse the records, filter by date/scope/site, and open **Details** to inspect
+   the inputs used. Saved totals also feed the assistant and reduction targets.
+
+For a reproducible example, use a separate demo organisation and add a factor
+named **Demo electricity**, Scope 2, unit `kWh`, value `0.4`, source **Synthetic
+example**, year `2026`. Select **This is a synthetic demo factor**. An activity
+of `100 kWh` must preview and save as **40.00 kg CO2e**. These numbers are for
+software testing, not an official emissions estimate. Demo records are labelled
+on the emissions page but still contribute to company totals, including the
+assistant and targets; keep demo activity separate from real company data.
+
+### Endpoint behavior
+
+- `GET/POST /api/emissions/factors/`: list or add company factors. Each new
+  source/version is a separate factor; update/delete is not exposed yet.
+- `POST /api/emissions/preview/`: send `factor`, `quantity`, and `unit`; receive
+  `kg_co2e` without saving a record.
+- `GET/POST /api/emissions/activities/`: list or create records. Creation accepts
+  `description`, `date` (`YYYY-MM-DD`), `factor` ID, `site` ID, `quantity`, and
+  `unit`. The backend assigns the company, creator, scope, and result.
+- `GET /api/emissions/activities/<id>/`: inspect the original calculation inputs.
+- `POST /api/emissions/activities/import/`: upload a CSV file in the `file`
+  multipart field. The response reports how many records were created.
+- `GET /api/emissions/summary/`: record count, demo count, total and scope totals.
+
+Activity lists and summaries accept `start` (inclusive), `end` (exclusive),
+`scope` (1–3), and `site`. Lists use 20 records per page and accept `page`.
+Omitted date filters include all dates. Invalid filters return HTTP 400.
+Admins/editors can add factors, add activities, and import CSV; viewers can read
+and preview. All endpoints require an organisation membership. Cross-company IDs
+are rejected.
+
+Quantities must be non-negative and have at most four decimal places; factors
+allow eight. Zero is valid. Units must match exactly: conversions are not implicit.
+Activity dates cannot be in the future. The calculation uses `Decimal` and rounds
+half up to **0.01 kg CO2e** once per record; totals sum those saved results.
+Records preserve the factor name, scope, value, unit, source, year, and demo flag
+used at creation. Writes use the existing audit log.
+
+### CSV import
+
+The **Import CSV** button accepts UTF-8 files with a header row. Required columns
+are `date`, `description`, `site`, `factor`, `quantity`, and `unit`. The optional
+`factor_year` column selects one version when several factors share a name. Dates
+use `YYYY-MM-DD`; site and factor names must match the company exactly.
+
+Validation is all-or-nothing: if any row fails, no records are saved and the
+response lists each problem with its physical line number (up to 100 problems
+are shown). Imports are limited to 5 MB and 5,000 data rows. Each imported record is calculated with the same
+rules as manual entry and receives its own audit-log entry. The import does not
+check for duplicate activities, so re-uploading a file creates the rows again.
+A template is available from the import dialog.
+
+Streaming, activity editing/deletion, factor-change recalculation, and department
+links are follow-up work. This slice uses the existing PostgreSQL/SQLite setup;
+MySQL support for Hometask 3 is still pending.
