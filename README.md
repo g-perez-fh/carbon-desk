@@ -163,8 +163,10 @@ python -m ruff format --check .
 
 Implemented: **Users, Organisation & Targets** and the **AI Sustainability
 Assistant**. The emissions page now supports factor creation, activity entry,
-CSV import, calculation previews, filtered records, and totals. Analytics remains
-a placeholder.
+CSV import, calculation previews, filtered records, and totals. The dashboard at
+http://localhost:8080/dashboard shows KPIs, emissions by scope, a monthly trend,
+emissions by site, the top sources and target progress, with filters and a CSV
+export. PDF reports are still to come.
 
 - Register a company at http://localhost:8080/register; you become its administrator.
 - Roles: `admin` manages the organisation, members and targets; `editor` enters
@@ -195,6 +197,7 @@ a placeholder.
 | Organisation | `accounts/organisation/`, `accounts/sites/`, `accounts/members/` |
 | Targets & alerts | `accounts/targets/`, `accounts/targets/evaluate/`, `accounts/alerts/`, `accounts/audit-log/` |
 | Emissions | `emissions/factors/`, `emissions/activities/`, `emissions/activities/import/`, `emissions/preview/`, `emissions/summary/` |
+| Analytics | `analytics/dashboard/`, `analytics/export/csv/` (both accept `start`, `end`, `scope`, `site`) |
 | Assistant | `assistant/conversations/`, `assistant/conversations/<id>/messages/`, `assistant/recommendations/`, `assistant/summaries/` |
 
 Implemented UML diagrams and the team presentation video link will be added as
