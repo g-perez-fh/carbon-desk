@@ -16,8 +16,11 @@ from accounts.services import target_progress
 from emissions.models import ActivityRecord
 from emissions.services import scope_totals
 
+from .exceptions import ExportError, InvalidFilterError, NoDataError
+
 CENTS = Decimal("0.01")
 TOP_SOURCES = 5
+EXPORT_FORMATS = ("csv",)
 CSV_COLUMNS = [
     "date",
     "description",
@@ -34,7 +37,16 @@ CSV_COLUMNS = [
 
 
 def filter_records(organisation, *, start=None, end=None, scope=None, site=None):
-    """Activity records of one organisation, narrowed by optional filters (end is exclusive)."""
+    """Activity records of one organisation, narrowed by optional filters (end is exclusive).
+
+    The API view validates filters through ActivityFilterSerializer before calling this
+    function. These checks are a second line of defense for any other caller (a script,
+    a test, a future task) that calls filter_records directly.
+    """
+    if scope is not None and scope not in (1, 2, 3):
+        raise InvalidFilterError(f"scope must be 1, 2, or 3, got {scope!r}.")
+    if start and end and start >= end:
+        raise InvalidFilterError("end must be after start (end is exclusive).")
     records = ActivityRecord.objects.filter(organisation=organisation)
     if start:
         records = records.filter(date__gte=start)
@@ -130,8 +142,12 @@ def dashboard(organisation, records):
     }
 
 
-def export_csv(records):
+def export_csv(records, format="csv"):
     """The filtered activity records as CSV text, one row per record."""
+    if format not in EXPORT_FORMATS:
+        raise ExportError(f"Unsupported export format: {format!r}. Use one of {EXPORT_FORMATS}.")
+    if not records.exists():
+        raise NoDataError()
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(CSV_COLUMNS)

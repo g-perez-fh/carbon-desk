@@ -10,6 +10,16 @@ from accounts.permissions import IsOrganisationMember
 from emissions.serializers import ActivityFilterSerializer
 
 from . import services
+from .exceptions import AnalyticsError
+
+
+class AnalyticsAPIView(APIView):
+    """An APIView that turns any AnalyticsError into a clean JSON error response."""
+
+    def handle_exception(self, exc):
+        if isinstance(exc, AnalyticsError):
+            return Response(exc.as_response_data(), status=exc.status_code)
+        return super().handle_exception(exc)
 
 
 def as_json(value):
@@ -30,7 +40,7 @@ def filtered_records(request):
     return services.filter_records(request.user.organisation, **filters.validated_data)
 
 
-class DashboardView(APIView):
+class DashboardView(AnalyticsAPIView):
     permission_classes = [IsOrganisationMember]
 
     def get(self, request):
@@ -38,17 +48,19 @@ class DashboardView(APIView):
         return Response(as_json(services.dashboard(request.user.organisation, records)))
 
 
-class ExportCsvView(APIView):
+class ExportCsvView(AnalyticsAPIView):
     """Return the CSV inside JSON so the frontend can reuse its normal API helper."""
 
     permission_classes = [IsOrganisationMember]
 
     def get(self, request):
         records = filtered_records(request)
+        export_format = request.query_params.get("export_format", "csv")
+        content = services.export_csv(records, format=export_format)
         return Response(
             {
                 "filename": f"carbondesk-emissions-{date.today().isoformat()}.csv",
                 "rows": records.count(),
-                "content": services.export_csv(records),
+                "content": content,
             }
         )
